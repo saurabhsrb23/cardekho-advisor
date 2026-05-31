@@ -96,4 +96,5 @@ export interface UIMessage {
   content: string
   recommendations?: CarWithReason[]   // present on assistant messages that include cars
   isLoading?: boolean                 // true while the API call is in flight
+  isError?: boolean                   // true when the API call failed
 }

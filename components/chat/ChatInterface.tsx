@@ -99,7 +99,9 @@ export function ChatInterface() {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === loadingId ? { id: loadingId, role: 'assistant' as const, content: msg } : m
+          m.id === loadingId
+            ? { id: loadingId, role: 'assistant' as const, content: msg, isError: true }
+            : m
         )
       )
     } finally {
