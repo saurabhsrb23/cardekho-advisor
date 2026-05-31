@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Cars master table ────────────────────────────────────────────────────────
+// Seeded once, read-only at runtime.
+// pros / cons are stored as JSON strings because SQLite has no array type.
+
+model Car {
+  id                Int      @id @default(autoincrement())
+  make              String
+  model             String
+  variant           String
+  bodyType          String   // hatchback | sedan | suv | muv | electric | luxury
+  fuelType          String   // petrol | diesel | cng | electric | hybrid
+  transmission      String   // manual | automatic | amt | cvt | dct
+  priceMinLakh      Float
+  priceMaxLakh      Float
+  mileageKmpl       Float?   // null for EVs
+  engineCc          Int?     // null for EVs
+  powerBhp          Float
+  torqueNm          Float
+  seating           Int
+  safetyStars       Int?     // NCAP 0–5, null if untested
+  bootLitres        Int?
+  groundClearanceMm Int?
+  pros              String   // JSON: ["Good mileage", ...]
+  cons              String   // JSON: ["Noisy cabin", ...]
+  bestFor           String
+  createdAt         DateTime @default(now())
+
+  shortlistItems    ShortlistItem[]
+
+  @@index([bodyType])
+  @@index([fuelType])
+  @@index([priceMinLakh, priceMaxLakh])
+}
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+// Anonymous sessions identified by a UUID stored in the browser's localStorage.
+
+model Session {
+  id           String   @id            // UUID v4 generated client-side
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now()) @updatedAt
+
+  messages       Message[]
+  shortlistItems ShortlistItem[]
+}
+
+// ─── Messages ─────────────────────────────────────────────────────────────────
+// Full conversation history per session, used to reconstruct multi-turn context
+// for Claude on every new message.
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  role      String   // "user" | "assistant"
+  content   String
+  carIds    String?  // JSON: [14, 22] — car IDs recommended in this assistant turn
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+// ─── Shortlist items ──────────────────────────────────────────────────────────
+// Persists the cars a buyer has explicitly saved within a session.
+
+model ShortlistItem {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  carId     Int
+  addedAt   DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  car     Car     @relation(fields: [carId], references: [id])
+
+  @@unique([sessionId, carId])  // prevents duplicates
+  @@index([sessionId])
+}
