@@ -1,34 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getCarsByIds } from '@/lib/cars'
 import type { ShortlistActionRequest, ShortlistActionResponse, ShortlistDetailResponse } from '@/types'
 
+// GET /api/shortlist?sessionId=uuid
+// Returns full car objects for the session's saved shortlist
 export async function GET(request: NextRequest) {
-  // TODO: return full car objects for the session's shortlist
-  // Query param: ?sessionId=uuid
-  // 1. Validate sessionId
-  // 2. Fetch ShortlistItems for this session, joined with Car
-  // 3. Deserialize pros/cons JSON → string[]
-  // 4. Return { cars: Car[] }
+  const sessionId = request.nextUrl.searchParams.get('sessionId')
 
-  const _sessionId = request.nextUrl.searchParams.get('sessionId')
+  if (!sessionId) {
+    return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
+  }
 
-  return NextResponse.json(
-    { cars: [] } satisfies ShortlistDetailResponse,
-    { status: 501 }
-  )
+  const items = await prisma.shortlistItem.findMany({
+    where: { sessionId },
+    orderBy: { addedAt: 'asc' },
+    select: { carId: true },
+  })
+
+  const cars = await getCarsByIds(items.map((i) => i.carId))
+
+  return NextResponse.json({ cars } satisfies ShortlistDetailResponse)
 }
 
+// POST /api/shortlist
+// Body: { sessionId, carId, action: "add" | "remove" }
 export async function POST(request: NextRequest) {
-  // TODO: add or remove a car from the shortlist
-  // Body: { sessionId, carId, action: "add" | "remove" }
-  // 1. Validate body
-  // 2. If action === "add": upsert ShortlistItem (@@unique handles duplicates)
-  // 3. If action === "remove": delete ShortlistItem where sessionId+carId match
-  // 4. Return updated shortlist IDs + count
+  let body: ShortlistActionRequest
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-  const _body: ShortlistActionRequest = await request.json()
+  const { sessionId, carId, action } = body
 
-  return NextResponse.json(
-    { shortlist: [], count: 0 } satisfies ShortlistActionResponse,
-    { status: 501 }
-  )
+  if (!sessionId || typeof sessionId !== 'string') {
+    return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
+  }
+  if (!carId || typeof carId !== 'number') {
+    return NextResponse.json({ error: 'carId must be a number' }, { status: 400 })
+  }
+  if (action !== 'add' && action !== 'remove') {
+    return NextResponse.json({ error: 'action must be "add" or "remove"' }, { status: 400 })
+  }
+
+  // Ensure the session exists (upsert silently handles first-time adds)
+  await prisma.session.upsert({
+    where: { id: sessionId },
+    create: { id: sessionId },
+    update: {},
+  })
+
+  if (action === 'add') {
+    // upsert — @@unique([sessionId, carId]) prevents duplicates
+    await prisma.shortlistItem.upsert({
+      where: { sessionId_carId: { sessionId, carId } },
+      create: { sessionId, carId },
+      update: {}, // already exists — no-op
+    })
+  } else {
+    await prisma.shortlistItem.deleteMany({
+      where: { sessionId, carId },
+    })
+  }
+
+  // Return updated list of IDs for this session
+  const remaining = await prisma.shortlistItem.findMany({
+    where: { sessionId },
+    orderBy: { addedAt: 'asc' },
+    select: { carId: true },
+  })
+
+  const shortlist = remaining.map((i) => i.carId)
+
+  return NextResponse.json({
+    shortlist,
+    count: shortlist.length,
+  } satisfies ShortlistActionResponse)
 }

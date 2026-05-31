@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Car } from '@/types'
+import { getAllCars, getCarsByIds } from '@/lib/cars'
 
+// GET /api/cars
+// ?ids=1,14,22   — fetch specific cars (used by comparison page if needed)
+// no params      — return all cars
 export async function GET(request: NextRequest) {
-  // TODO: implement car retrieval with optional filters
-  // Query params (all optional):
-  //   ?ids=1,14,22          — fetch specific cars by ID (used by comparison page)
-  //   ?bodyType=suv         — filter by body type
-  //   ?fuelType=petrol      — filter by fuel type
-  //   ?maxPrice=15          — filter by max price (in lakhs)
-  //
-  // If no params: return all cars (used by Claude system prompt builder)
+  const idsParam = request.nextUrl.searchParams.get('ids')
 
-  const _ids = request.nextUrl.searchParams.get('ids')
-  const _bodyType = request.nextUrl.searchParams.get('bodyType')
+  if (idsParam) {
+    const ids = idsParam
+      .split(',')
+      .map(Number)
+      .filter((n) => !isNaN(n) && n > 0)
 
-  return NextResponse.json(
-    { cars: [] } satisfies { cars: Car[] },
-    { status: 501 }
-  )
+    if (ids.length === 0) {
+      return NextResponse.json({ error: 'ids must be comma-separated positive integers' }, { status: 400 })
+    }
+
+    const cars = await getCarsByIds(ids)
+    return NextResponse.json({ cars })
+  }
+
+  const cars = await getAllCars()
+  return NextResponse.json({ cars })
 }
