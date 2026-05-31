@@ -14,8 +14,5 @@ export async function POST(request: NextRequest) {
 
   const _body: ChatRequest = await request.json()
 
-  return NextResponse.json(
-    { error: 'Not implemented' } satisfies Partial<ChatResponse>,
-    { status: 501 }
-  )
+  return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
 }

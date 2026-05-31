@@ -11,8 +11,5 @@ export async function GET(request: NextRequest) {
 
   const _sessionId = request.nextUrl.searchParams.get('sessionId')
 
-  return NextResponse.json(
-    { error: 'Not implemented' } satisfies Partial<SessionData>,
-    { status: 501 }
-  )
+  return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
 }

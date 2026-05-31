@@ -2,15 +2,12 @@ import { prisma } from './db'
 import type { Car } from '@/types'
 
 // Deserializes the JSON string columns (pros, cons) back into string arrays
-function deserializeCar(raw: {
-  pros: string
-  cons: string
-  [key: string]: unknown
-}): Car {
+function deserializeCar(raw: Record<string, unknown> & { pros: string; cons: string }): Car {
+  const { pros, cons, ...rest } = raw
   return {
-    ...(raw as Omit<Car, 'pros' | 'cons'>),
-    pros: JSON.parse(raw.pros) as string[],
-    cons: JSON.parse(raw.cons) as string[],
+    ...(rest as unknown as Omit<Car, 'pros' | 'cons'>),
+    pros: JSON.parse(pros) as string[],
+    cons: JSON.parse(cons) as string[],
   }
 }
 
